@@ -26,4 +26,4 @@ VALUES
     ('Sally', 'Sutra', 3, NULL),
     ('Stanley', 'Rubix', 4, NULL),
     ('Stephanie', 'Starr', 5, NULL),
-    ('Corey', 'Casover', 1, 1)
+    ('Corey', 'Casover', 6, 1)
