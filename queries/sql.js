@@ -146,7 +146,7 @@ function allDepartments() {
     };
 
 function allRoles() {
-    db.promise().query("SELECT * FROM roles")
+    db.promise().query("SELECT roles.id, roles.title, departments.name AS department, roles.salary FROM roles LEFT JOIN departments ON roles.department_id = departments.id")
         .then( ([rows]) => {
             console.log(cTable.getTable(rows));
             init()
@@ -154,7 +154,7 @@ function allRoles() {
     };
 
 function allEmployees() {
-    db.promise().query("SELECT employees.first_name, employees.last_name, roles.title, departments.name AS department, roles.salary, CONCAT_WS(' ', IFNULL(manager.first_name,''), IFNULL(manager.last_name,'')) AS manager FROM employees LEFT JOIN roles ON employees.role_id = roles.id LEFT JOIN departments ON roles.department_id = departments.id LEFT JOIN employees AS manager ON employees.manager_id = manager.id")
+    db.promise().query("SELECT employees.id, employees.first_name, employees.last_name, roles.title, departments.name AS department, roles.salary, CONCAT_WS(' ', IFNULL(manager.first_name,''), IFNULL(manager.last_name,'')) AS manager FROM employees LEFT JOIN roles ON employees.role_id = roles.id LEFT JOIN departments ON roles.department_id = departments.id LEFT JOIN employees AS manager ON employees.manager_id = manager.id")
         .then( ([rows]) => {
             console.log(cTable.getTable(rows));
             init()
