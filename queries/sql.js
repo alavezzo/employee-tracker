@@ -1,7 +1,7 @@
 const inquirer = require('inquirer')
 const db = require('../config/connection')
 const cTable = require('console.table')
-const { end } = require('../config/connection')
+const newEmployee = require('../lib/NewEmployee')
 
 function promptUser() {
     return inquirer.prompt(
@@ -28,7 +28,9 @@ function init() {
         } else if ( start === 'Add a Role') {
             addRole()
         } else if ( start === 'Add an Employee') {
-            addEmployee()
+            getEmployeeChoices().then(({ roles, departments, managers }) => {
+               promptAddEmployee(roles, departments, managers)
+            })
         } else {
             updateEmployee()
         }
@@ -89,9 +91,15 @@ function addDepartmentQuery(name) {
         }    
         )
 };
+function addRole() {
+    db.promise().query({sql: "SELECT departments.name FROM departments", rowsAsArray: true})
+        .then( ([rows]) => {
+            const departments = rows.flat()
+            promptAddRole(departments)
+        })
+}
 
-
-function promptRole(departments) {
+function promptAddRole(departments) {
         inquirer
             .prompt([
                 {
@@ -128,24 +136,14 @@ function promptRole(departments) {
                     type: "list",
                     message: "What department is the role under?",
                     name: "roleDepartment",
-                    choices: departments,
+                    choices: departments
                 }
             ])
             .then( ({ roleTitle, salary, roleDepartment }) => {
                 let departmentId = 1 + departments.findIndex(x => x === roleDepartment)
                 addRoleQuery(roleTitle, salary, departmentId)
             })
-    };
-
-function addRole() {
-    db.promise().query({sql: "SELECT departments.name FROM departments", rowsAsArray: true})
-        .then( ([rows]) => {
-            const departments = rows.flat()
-            return departments
-        }).then(departments => {
-            promptRole(departments)
-        })
-}
+};
 
 function addRoleQuery(title, salary, department) {
     db.promise().query(`INSERT INTO roles(title, salary, department_id) VALUES('${title}',${salary},${department})`)
@@ -154,9 +152,20 @@ function addRoleQuery(title, salary, department) {
             init();
         }    
         )
+};
+
+
+
+async function getEmployeeChoices() {
+        const employeeChoices = new newEmployee;
+        await employeeChoices.defineRoles()
+        await employeeChoices.defineDepartments()
+        await employeeChoices.defineManagers()
+
+        return employeeChoices
 }
-    
-function addEmployee() {
+
+function promptAddEmployee(roles, departments, managers) {
     inquirer
         .prompt([
             {
@@ -188,24 +197,33 @@ function addEmployee() {
             {
                 type: "list",
                 message: "What is the employee's role?",
-                name: "role",
-                choices: []
+                name: "roles",
+                choices: roles
+            },
+            {
+                type: "list",
+                message: "What is the employee's department?",
+                name: "department",
+                choices: departments
             },
             {
                 type: "list",
                 message: "Who is the employee's manager?",
                 name: "manager",
-                choices: []
+                choices: managers
             }
-        ]);
-    };
+        // ])
+        // // .then( ({ firstName, lastName, role, manager }) => {
+
+        // // } );
+        ])};
 
 function updateEmployee() {
   
     }
 
 
-// const addRoles = `INSERT INTO role((title, salary, department_id)) VALUES(${},${},${})`;
+
 // const addEmployee = `INSERT INTO employee(first_name, last_name, role_id, manager_id) VALUES(${},${},${})`;
 // const updateEmployee = `UPDATE employee SET role_id = ${} WHERE id = ${}`
 
@@ -219,3 +237,6 @@ function updateEmployee() {
 // THEN I am prompted to select an employee to update and their new role and this information is updated in the database 
 
 module.exports = init;
+// SELECT DISTINCT roles.title FROM roles UNION SELECT departments.name FROM departments UNION SELECT CONCAT_WS(' ', employees.first_name, employees.last_name) FROM employees INNER JOIN roles ON employees.role_id = roles.id WHERE roles.title LIKE '%manager%'
+
+// SELECT CONCAT_WS(' ', employees.first_name, employees.last_name) WHERE roles.title LIKE '%manager%', roles.title FROM employees JOIN roles ON employees.role_id = roles.id
