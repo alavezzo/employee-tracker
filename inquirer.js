@@ -20,13 +20,10 @@ function init() {
         } else if ( start === 'Add an Employee') {
            addEmployee()
         } else {
-            getEmployeeChoices().then(({ employees, roles, departments}) => {
-                updateEmployeeRole(employees, roles, departments)
-            })
+            updateEmployeeRole()
         }
     })
 }
-
 
 function promptUser() {
     return inquirer.prompt(
@@ -156,49 +153,20 @@ function addRoleQuery(title, salary, department) {
 };
 
 
-async function addEmployee() {
-    const employee = new Employee;
-    const employeeChoices = new EmployeeChoices;
-        
-    await employeeChoices.getAllDepartments();
-    await promptNameAndDepartment(employeeChoices.departments)
-        .then( async function ({ firstName, lastName, department }) {
-            await employee.setName(firstName, lastName)
-            await employee.setDepartmentId(department)
-        });
-    await employeeChoices.getRolesByDepartment(employee.departmentId);
-    await employeeChoices.getManagers();
-    await promptRoleAndManager(employeeChoices.rolesByDepartment, employeeChoices.managers)
-        .then( async function ({ role, manager }) {
-           await employee.setRoleId(role, employee.departmentId)
-           if (manager) {
-                await employee.setManagerId(manager)
-                await addNewEmployee(employee.firstName, employee.lastName, employee.roleId, employee.managerId)
-                        .then(() => {
-                            console.log(`${employee.firstName} ${employee.lastName} has been added to the employee database!`)
-                            init();
-                         })
-           } else {
-                await addNewEmployeeNoManager(employee.firstName, employee.lastName, employee.roleId)
-                    .then(() => {
-                        console.log(`${employee.firstName} ${employee.lastName} has been added to the employee database!`)
-                        init();
-                    })
-            }
-        });
-}
 
+function promptEmployee(employees) {
+    return inquirer
+         .prompt(
+             {
+                 type: "list",
+                 message: "Select the employee you wish to update",
+                 name: "employeeName",
+                 choices: employees
+             }
+         )
+ }
 
-async function addNewEmployee(firstName, lastName, roleId, managerId) {
-    await db.promise().query(`INSERT INTO employees(first_name, last_name, role_id, manager_id) VALUES('${firstName}','${lastName}',${roleId}, ${managerId})`)
-}
-
-async function addNewEmployeeNoManager(firstName, lastName, roleId) {
-    await db.promise().query(`INSERT INTO employees(first_name, last_name, role_id) VALUES('${firstName}','${lastName}',${roleId})`)
-}
-
-
-function promptNameAndDepartment(departments) {
+function promptName() {
     return inquirer
         .prompt([
             {
@@ -226,101 +194,138 @@ function promptNameAndDepartment(departments) {
                         return false;
                     }
                 }
-            },
-            {
-                type: "list",
-                message: "What is the employee's department?",
-                name: "department",
-                choices: departments
             }
         ])
 }
 
-function promptRoleAndManager (roles, managers) {
+function promptDepartment(departments) {
     return inquirer
-        .prompt([
-            {
-                type: "list",
-                message: "What is the employee's role?",
-                name: "role",
-                choices: roles
-            },
-            {
-                type: 'confirm',
-                name: 'confirmManager',
-                message: 'Does this employee report to a manager?',
-                default: false,
-            },
-            {
-                type: "list",
-                message: "Who is the employee's manager?",
-                name: "manager",
-                choices: managers,
-                when: ({confirmManager}) => {
-                    if (confirmManager) {
-                    return true;
-                    } else {
-                        return false
+            .prompt(
+                    {
+                        type: "list",
+                        message: "What is the employee's department?",
+                        name: "department",
+                        choices: departments
                     }
-                } 
-            }
-        ])
+                )
+};
+
+
+function promptRole(roles) {
+    return inquirer
+            .prompt(
+                {
+                    type: "list",
+                    message: "What is the employee's role?",
+                    name: "role",
+                    choices: roles
+                }
+            )
+}
+
+function promptManager(managers) {
+    return inquirer
+            .prompt([      
+                {
+                    type: 'confirm',
+                    name: 'confirmManager',
+                    message: 'Does this employee report to a manager?',
+                    default: false,
+                },
+                {
+                    type: "list",
+                    message: "Who is the employee's manager?",
+                    name: "manager",
+                    choices: managers,
+                    when: ({confirmManager}) => {
+                        if (confirmManager) {
+                        return true;
+                        } else {
+                            return false
+                        }
+                    } 
+                }
+            ])
     };
 
-
-async function updateEmployee(employeeId, role, departmentId) {
-    console.log(role)
-    console.log(departmentId)
-    const roleId = new RoleId
-    await roleId.getRoleIdFromTitleAndDepartment(role, departmentId)
-    if (!roleId.roleId) {
-        console.log('This role does not exist for this department!')
-        init();
+async function addEmployee() {
+        const employee = new Employee;
+        const employeeChoices = new EmployeeChoices;
+            
+        await employeeChoices.getAllDepartments();
+        await promptName()
+            .then( async function ({ firstName, lastName }) {
+                await employee.setName(firstName, lastName)
+            });
+        await promptDepartment(employeeChoices.departments)
+            .then( async function ({ department }) {
+                await employee.setDepartmentId(department)
+        });
+        await employeeChoices.getRolesByDepartment(employee.departmentId);
+        await employeeChoices.getManagers();
+        await promptRole(employeeChoices.rolesByDepartment)
+            .then( async function ({ role }) {
+                await employee.setRoleId(role, employee.departmentId)
+            });
+        await promptManager(employeeChoices.managers)
+            .then( async function ({ manager }) {
+               if (manager) {
+                    await employee.setManagerId(manager)
+                    await insertNewEmployee(employee.firstName, employee.lastName, employee.roleId, employee.managerId)
+                            .then(() => {
+                                console.log(`${employee.firstName} ${employee.lastName} has been added to the employee database!`)
+                                init();
+                             })
+               } else {
+                    await insertNewEmployeeNoManager(employee.firstName, employee.lastName, employee.roleId)
+                        .then(() => {
+                            console.log(`${employee.firstName} ${employee.lastName} has been added to the employee database!`)
+                            init();
+                        })
+                }
+            });
     }
-    await db.promise().query(`UPDATE employees SET employees.role_id = ${roleId.roleId} WHERE employees.id = ${employeeId}`)
+    
+
+async function updateEmployeeRole() {
+    const employee = new Employee
+    const employeeChoices = new EmployeeChoices
+    
+    
+    await employeeChoices.getAllEmployees();
+    await promptEmployee(employeeChoices.employees)
+        .then( async function ({ employeeName }) {
+            await employee.setFullName(employeeName)
+        });
+    await employeeChoices.getAllDepartments();
+    await promptDepartment(employeeChoices.departments)
+        .then( async function ({ department }) {
+            await employee.setDepartmentId(department)
+        });
+    await employeeChoices.getRolesByDepartment(employee.departmentId);
+    await promptRole(employeeChoices.rolesByDepartment)
+        .then( async function ({role}) {
+            await employee.setRoleTitle(role)
+            await employee.setRoleId(role, employee.departmentId)
+        })
+    await updateRole(employee.roleId, employee.fullName)
+        .then(() => {
+            console.log(`Employee's role has been updated to ${employee.roleTitle}`)
+            init();
+        })
+};
+
+
+async function insertNewEmployee(firstName, lastName, roleId, managerId) {
+    await db.promise().query(`INSERT INTO employees(first_name, last_name, role_id, manager_id) VALUES('${firstName}','${lastName}',${roleId}, ${managerId})`)
 }
 
-function updateEmployeeRole(employees, roles, departments) {
-   inquirer
-    .prompt([
-        {
-            type: "list",
-            message: "Select the employee you wish to update",
-            name: "employee",
-            choices: employees
-        },
-        {
-            type: "list",
-            message: "What is the employee's new role?",
-            name: "newRole",
-            choices: roles
-        },
-        {
-            type: "list",
-            message: "Which department is this role under?",
-            name: "department",
-            choices: departments
-        }
-    ]).then( ({ employee, newRole, department }) => {
-        let departmentId = 1 + departments.findIndex(x => x === department)
-        let employeeId = 1 + employees.findIndex(x => x === employee)
-        updateEmployee(employeeId, newRole, departmentId).then(() => {
-                console.log(`Added '${employee}' to list of employees`);
-                init();
-            })   
-    });
+async function insertNewEmployeeNoManager(firstName, lastName, roleId) {
+    await db.promise().query(`INSERT INTO employees(first_name, last_name, role_id) VALUES('${firstName}','${lastName}',${roleId})`)
 }
 
-
-
-
-// const updateEmployee = `UPDATE employee SET role_id = ${} WHERE id = ${}`
-
-// WHEN I choose to update an employee role
-// THEN I am prompted to select an employee to update and their new role and this information is updated in the database 
+async function updateRole(roleId, fullName) {
+    await db.promise().query(`UPDATE employees SET employees.role_id = ${roleId} WHERE CONCAT_WS(' ', employees.first_name, employees.last_name) = '${fullName}' `)
+}
 
 module.exports = init;
-// SELECT DISTINCT roles.title FROM roles UNION SELECT departments.name FROM departments UNION SELECT CONCAT_WS(' ', employees.first_name, employees.last_name) FROM employees INNER JOIN roles ON employees.role_id = roles.id WHERE roles.title LIKE '%manager%'
-
-// SELECT roles.id FROM roles WHERE roles.title LIKE '%manager%' AND roles.department_id = 7;
-// SELECT CONCAT_WS(' ', employees.first_name, employees.last_name) WHERE roles.title LIKE '%manager%', roles.title FROM employees JOIN roles ON employees.role_id = roles.id
