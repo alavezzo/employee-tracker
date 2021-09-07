@@ -1,19 +1,8 @@
 const inquirer = require('inquirer')
-const db = require('../config/connection')
+const db = require('./config/connection')
 const cTable = require('console.table')
-const EmployeeChoices = require('../lib/EmployeeChoices')
-const NewEmployee = require('../lib/NewEmployee')
-
-function promptUser() {
-    return inquirer.prompt(
-        {
-            type: "list",
-            message: "What would you like to do?",
-            name: "start",
-            choices: ['View All Departments', 'View All Roles', 'View All Employees', 'Add a Department', 'Add a Role', 'Add an Employee', 'Update Employee']
-        }
-    )
-};
+const EmployeeChoices = require('./lib/EmployeeChoices')
+const Employee = require('./lib/Employee')
 
 function init() {
     promptUser()
@@ -29,15 +18,26 @@ function init() {
         } else if ( start === 'Add a Role') {
             addRole()
         } else if ( start === 'Add an Employee') {
-            getEmployeeChoices().then(({ roles, departments, managers }) => {
-               promptAddEmployee(roles, departments, managers)
-            })
+           addEmployee()
         } else {
-            updateEmployee()
+            getEmployeeChoices().then(({ employees, roles, departments}) => {
+                updateEmployeeRole(employees, roles, departments)
+            })
         }
     })
 }
 
+
+function promptUser() {
+    return inquirer.prompt(
+        {
+            type: "list",
+            message: "What would you like to do?",
+            name: "start",
+            choices: ["View All Departments", "View All Roles", "View All Employees", "Add a Department", "Add a Role", "Add an Employee", "Update an Employee's Role"]
+        }
+    )
+};
 
 function allDepartments() {
     db.promise().query("SELECT * FROM departments")
@@ -91,6 +91,7 @@ function addDepartmentQuery(name) {
         }    
         )
 };
+
 function addRole() {
     db.promise().query({sql: "SELECT departments.name FROM departments", rowsAsArray: true})
         .then( ([rows]) => {
@@ -155,17 +156,50 @@ function addRoleQuery(title, salary, department) {
 };
 
 
-async function getEmployeeChoices() {
-        const employeeChoices = new EmployeeChoices;
-        await employeeChoices.defineRoles()
-        await employeeChoices.defineDepartments()
-        await employeeChoices.defineManagers()
-
-        return employeeChoices
+async function addEmployee() {
+    const employee = new Employee;
+    const employeeChoices = new EmployeeChoices;
+        
+    await employeeChoices.getAllDepartments();
+    await promptNameAndDepartment(employeeChoices.departments)
+        .then( async function ({ firstName, lastName, department }) {
+            await employee.setName(firstName, lastName)
+            await employee.setDepartmentId(department)
+        });
+    await employeeChoices.getRolesByDepartment(employee.departmentId);
+    await employeeChoices.getManagers();
+    await promptRoleAndManager(employeeChoices.rolesByDepartment, employeeChoices.managers)
+        .then( async function ({ role, manager }) {
+           await employee.setRoleId(role, employee.departmentId)
+           if (manager) {
+                await employee.setManagerId(manager)
+                await addNewEmployee(employee.firstName, employee.lastName, employee.roleId, employee.managerId)
+                        .then(() => {
+                            console.log(`${employee.firstName} ${employee.lastName} has been added to the employee database!`)
+                            init();
+                         })
+           } else {
+                await addNewEmployeeNoManager(employee.firstName, employee.lastName, employee.roleId)
+                    .then(() => {
+                        console.log(`${employee.firstName} ${employee.lastName} has been added to the employee database!`)
+                        init();
+                    })
+            }
+        });
 }
 
-function promptAddEmployee(roles, departments, managers) {
-    inquirer
+
+async function addNewEmployee(firstName, lastName, roleId, managerId) {
+    await db.promise().query(`INSERT INTO employees(first_name, last_name, role_id, manager_id) VALUES('${firstName}','${lastName}',${roleId}, ${managerId})`)
+}
+
+async function addNewEmployeeNoManager(firstName, lastName, roleId) {
+    await db.promise().query(`INSERT INTO employees(first_name, last_name, role_id) VALUES('${firstName}','${lastName}',${roleId})`)
+}
+
+
+function promptNameAndDepartment(departments) {
+    return inquirer
         .prompt([
             {
                 type: "input",
@@ -195,15 +229,21 @@ function promptAddEmployee(roles, departments, managers) {
             },
             {
                 type: "list",
-                message: "What is the employee's role?",
-                name: "role",
-                choices: roles
-            },
-            {
-                type: "list",
                 message: "What is the employee's department?",
                 name: "department",
                 choices: departments
+            }
+        ])
+}
+
+function promptRoleAndManager (roles, managers) {
+    return inquirer
+        .prompt([
+            {
+                type: "list",
+                message: "What is the employee's role?",
+                name: "role",
+                choices: roles
             },
             {
                 type: 'confirm',
@@ -225,54 +265,57 @@ function promptAddEmployee(roles, departments, managers) {
                 } 
             }
         ])
-        .then( ({ firstName, lastName, role, department, manager }) => {
-            let departmentId = 1 + departments.findIndex(x => x === department)
-            if (manager) {
-                let managerId = 1 + managers.findIndex(x => x === manager)
-                addNewEmployee(firstName, lastName, role, departmentId, managerId).then(() => {
-                    console.log(`Added '${firstName} ${lastName}' to list of employees`);
-                    init();
-                })   
-            } else {
-                addNewEmployeeNoManager(firstName, lastName, role, departmentId).then(() => {
-                    console.log(`Added '${firstName} ${lastName}' to list of employees`);
-                    init();
-                })   
-            }
-        });
     };
 
-async function addNewEmployee(firstName, lastName, role, departmentId, managerId) {
-    const newEmployee = new NewEmployee
-    await newEmployee.getRoleId(role, departmentId)
-    await db.promise().query(`INSERT INTO employees(first_name, last_name, role_id, manager_id) VALUES('${firstName}','${lastName}',${newEmployee.roleId}, ${managerId})`)
+
+async function updateEmployee(employeeId, role, departmentId) {
+    console.log(role)
+    console.log(departmentId)
+    const roleId = new RoleId
+    await roleId.getRoleIdFromTitleAndDepartment(role, departmentId)
+    if (!roleId.roleId) {
+        console.log('This role does not exist for this department!')
+        init();
+    }
+    await db.promise().query(`UPDATE employees SET employees.role_id = ${roleId.roleId} WHERE employees.id = ${employeeId}`)
 }
 
-async function addNewEmployeeNoManager(firstName, lastName, role, departmentId) {
-    const newEmployee = new NewEmployee
-    await newEmployee.getRoleId(role, departmentId)
-    await db.promise().query(`INSERT INTO employees(first_name, last_name, role_id) VALUES('${firstName}','${lastName}',${newEmployee.roleId})`)
+function updateEmployeeRole(employees, roles, departments) {
+   inquirer
+    .prompt([
+        {
+            type: "list",
+            message: "Select the employee you wish to update",
+            name: "employee",
+            choices: employees
+        },
+        {
+            type: "list",
+            message: "What is the employee's new role?",
+            name: "newRole",
+            choices: roles
+        },
+        {
+            type: "list",
+            message: "Which department is this role under?",
+            name: "department",
+            choices: departments
+        }
+    ]).then( ({ employee, newRole, department }) => {
+        let departmentId = 1 + departments.findIndex(x => x === department)
+        let employeeId = 1 + employees.findIndex(x => x === employee)
+        updateEmployee(employeeId, newRole, departmentId).then(() => {
+                console.log(`Added '${employee}' to list of employees`);
+                init();
+            })   
+    });
 }
 
-    
-
-// function addEmployee(firstName, lastName, roleId, managerId) {
-//     console.log(managerId)
-    
-    
-// }
 
 
 
-// const addEmployee = `INSERT INTO employee(first_name, last_name, role_id, manager_id) VALUES(${},${},${})`;
 // const updateEmployee = `UPDATE employee SET role_id = ${} WHERE id = ${}`
 
-// WHEN I choose to add a department
-// THEN I am prompted to enter the name of the department and that department is added to the database
-// WHEN I choose to add a role
-// THEN I am prompted to enter the name, salary, and department for the role and that role is added to the database
-// WHEN I choose to add an employee
-// THEN I am prompted to enter the employee’s first name, last name, role, and manager and that employee is added to the database
 // WHEN I choose to update an employee role
 // THEN I am prompted to select an employee to update and their new role and this information is updated in the database 
 
