@@ -1,7 +1,8 @@
 const inquirer = require('inquirer')
 const db = require('../config/connection')
 const cTable = require('console.table')
-const newEmployee = require('../lib/NewEmployee')
+const EmployeeChoices = require('../lib/EmployeeChoices')
+const NewEmployee = require('../lib/NewEmployee')
 
 function promptUser() {
     return inquirer.prompt(
@@ -78,7 +79,6 @@ function addDepartment() {
                }
             })
         .then(({ departmentName }) => {
-            
             addDepartmentQuery(departmentName);
         })
 };
@@ -155,9 +155,8 @@ function addRoleQuery(title, salary, department) {
 };
 
 
-
 async function getEmployeeChoices() {
-        const employeeChoices = new newEmployee;
+        const employeeChoices = new EmployeeChoices;
         await employeeChoices.defineRoles()
         await employeeChoices.defineDepartments()
         await employeeChoices.defineManagers()
@@ -197,7 +196,7 @@ function promptAddEmployee(roles, departments, managers) {
             {
                 type: "list",
                 message: "What is the employee's role?",
-                name: "roles",
+                name: "role",
                 choices: roles
             },
             {
@@ -207,20 +206,61 @@ function promptAddEmployee(roles, departments, managers) {
                 choices: departments
             },
             {
+                type: 'confirm',
+                name: 'confirmManager',
+                message: 'Does this employee report to a manager?',
+                default: false,
+            },
+            {
                 type: "list",
                 message: "Who is the employee's manager?",
                 name: "manager",
-                choices: managers
+                choices: managers,
+                when: ({confirmManager}) => {
+                    if (confirmManager) {
+                    return true;
+                    } else {
+                        return false
+                    }
+                } 
             }
-        // ])
-        // // .then( ({ firstName, lastName, role, manager }) => {
+        ])
+        .then( ({ firstName, lastName, role, department, manager }) => {
+            let departmentId = 1 + departments.findIndex(x => x === department)
+            if (manager) {
+                let managerId = 1 + managers.findIndex(x => x === manager)
+                addNewEmployee(firstName, lastName, role, departmentId, managerId).then(() => {
+                    console.log(`Added '${firstName} ${lastName}' to list of employees`);
+                    init();
+                })   
+            } else {
+                addNewEmployeeNoManager(firstName, lastName, role, departmentId).then(() => {
+                    console.log(`Added '${firstName} ${lastName}' to list of employees`);
+                    init();
+                })   
+            }
+        });
+    };
 
-        // // } );
-        ])};
+async function addNewEmployee(firstName, lastName, role, departmentId, managerId) {
+    const newEmployee = new NewEmployee
+    await newEmployee.getRoleId(role, departmentId)
+    await db.promise().query(`INSERT INTO employees(first_name, last_name, role_id, manager_id) VALUES('${firstName}','${lastName}',${newEmployee.roleId}, ${managerId})`)
+}
 
-function updateEmployee() {
-  
-    }
+async function addNewEmployeeNoManager(firstName, lastName, role, departmentId) {
+    const newEmployee = new NewEmployee
+    await newEmployee.getRoleId(role, departmentId)
+    await db.promise().query(`INSERT INTO employees(first_name, last_name, role_id) VALUES('${firstName}','${lastName}',${newEmployee.roleId})`)
+}
+
+    
+
+// function addEmployee(firstName, lastName, roleId, managerId) {
+//     console.log(managerId)
+    
+    
+// }
 
 
 
@@ -239,4 +279,5 @@ function updateEmployee() {
 module.exports = init;
 // SELECT DISTINCT roles.title FROM roles UNION SELECT departments.name FROM departments UNION SELECT CONCAT_WS(' ', employees.first_name, employees.last_name) FROM employees INNER JOIN roles ON employees.role_id = roles.id WHERE roles.title LIKE '%manager%'
 
+// SELECT roles.id FROM roles WHERE roles.title LIKE '%manager%' AND roles.department_id = 7;
 // SELECT CONCAT_WS(' ', employees.first_name, employees.last_name) WHERE roles.title LIKE '%manager%', roles.title FROM employees JOIN roles ON employees.role_id = roles.id

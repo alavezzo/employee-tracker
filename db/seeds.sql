@@ -8,11 +8,11 @@ VALUES
 
 INSERT INTO roles (title, salary, department_id)
 VALUES 
-    ('Manager', 250000, 1),
-    ('Manager', 300000, 2),
-    ('Manager', 200000, 3),
-    ('Manager', 175000, 4),
-    ('Manager', 125000, 5),
+    ('Manager Manufacturing', 250000, 1),
+    ('Manager Engineer', 300000, 2),
+    ('Manager Sales', 200000, 3),
+    ('Manager HR', 175000, 4),
+    ('Manager Product Management', 125000, 5),
     ('Manafacturing Associate', 70000, 1),
     ('Engineer', 200000, 2),
     ('Sales Associate', 65000, 3),
