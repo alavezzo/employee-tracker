@@ -31,5 +31,5 @@
   
   ## Questions 
   Link to my GitHub: [github.com/alavezzo](https://github.com/alavezzo)
-  Email Address: vezzlegit@gmail.com
+  Email Address: lavezzo.ae@gmail.com
   Contact Instructions: Reach out via email!
