@@ -26,7 +26,7 @@
  https://drive.google.com/file/d/1V7vCbzD-p6DLvwEwJptqP_yKW5LS8r06/view
   
   ## Contribution Guidelines 
-  There is alot of additional functionality that would enhance this app. Right now the functionality is very limited. If you are familiar with JavaScript and MySql queries Reach Out!
+  There is a lot of additional functionality that would enhance this app. Right now the functionality is very limited. If you are familiar with JavaScript and MySql queries Reach Out!
   
   
   ## Questions 
